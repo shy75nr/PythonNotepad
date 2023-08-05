@@ -1,0 +1,8 @@
+future==0.18.3
+Pillow==10.0.0
+chardet~=5.2.0
+jieba~=0.42.1
+pyperclip~=1.8.2
+windnd~=1.0.7
+pygame==2.5.0
+mutagen~=1.46.0
