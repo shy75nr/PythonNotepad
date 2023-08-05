@@ -2273,7 +2273,7 @@ Ctrl+Alt+u增加行,Ctrl+Alt+p删除行\n\
         cd.add_separator()
         cd.add_command(label="文本长度(L)     Ctrl+L", command=self.len_of_text)
         cd.add_command(label="英文文本词数", command=self.len_of_english_text)
-        cd.add_command(label="词频统计", command=threading.Thread(target=self.lcut).start)
+        cd.add_command(label="词频统计", command=lambda:threading.Thread(target=self.lcut).start())
         cd.add_command(label="文件信息",
                        command=lambda: self.show_file(self.paths[self.note.index(self.note.select())], len(
                            self.text[self.note.index(self.note.select())].get("1.0", END)),
