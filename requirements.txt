@@ -6,3 +6,4 @@ pyperclip~=1.8.2
 windnd~=1.0.7
 pygame==2.5.0
 mutagen~=1.46.0
+ttkbootstrap~=1.10.0
