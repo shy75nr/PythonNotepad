@@ -41,7 +41,7 @@ def wheel_event(event, widget=None):
     """
     up = {EventType.MouseWheel: event.delta > 0,
           EventType.ButtonPress: event.num == 4}
-    lines = -5 if up[event.type] else 5
+    lines = -3 if up[event.type] else 3
     widget = event.widget if widget is None else widget
     widget.yview(SCROLL, lines, 'units')
     return 'break'
