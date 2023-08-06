@@ -1,7 +1,6 @@
 # -*- coding: UTF-8 -*-
 import datetime
 import getpass
-import multiprocessing
 import os
 import random
 import subprocess
@@ -10,9 +9,10 @@ import threading
 import time
 import traceback
 import webbrowser
-from tkinter.colorchooser import *
-from tkinter.filedialog import asksaveasfilename, askopenfilename, askopenfilenames
-from tkinter.font import *
+from tkinter import EventType
+from tkinter.colorchooser import askcolor
+from tkinter.filedialog import asksaveasfilename, askopenfilename, askopenfilenames, askdirectory
+from tkinter.font import Font
 from typing import List
 
 import chardet
@@ -24,12 +24,567 @@ from PIL import Image, ImageTk
 # from tkinter import *
 from _tkinter import TclError
 from need.ttkbootstrap import *
-from need.ttkbootstrap.scrolled import ScrolledFrame
+from need.ttkbootstrap.scrolled import ScrolledFrame, ScrolledText
 from need.ttkbootstrap.dialogs import Messagebox, Querybox
 from need.ttkbootstrap.icons import Emoji
 from pathlib import Path
 import pygame.mixer as music
 from mutagen.mp3 import MP3
+from idlelib.config import idleConf
+from idlelib import zoomheight
+
+ICONDIR = "icon"
+
+
+def wheel_event(event, widget=None):
+    """Handle scrollwheel event.
+
+    For wheel up, event.delta = 120*n on Windows, -1*n on darwin,
+    where n can be > 1 if one scrolls fast.  Flicking the wheel
+    generates up to maybe 20 events with n up to 10 or more 1.
+    Macs use wheel down (delta = 1*n) to scroll up, so positive
+    delta means to scroll up on both systems.
+
+    X-11 sends Control-Button-4,5 events instead.
+
+    The widget parameter is needed so browser label bindings can pass
+    the underlying canvas.
+
+    This function depends on widget.yview to not be overridden by
+    a subclass.
+    """
+    up = {EventType.MouseWheel: event.delta > 0,
+          EventType.ButtonPress: event.num == 4}
+    lines = -5 if up[event.type] else 5
+    widget = event.widget if widget is None else widget
+    widget.yview(SCROLL, lines, 'units')
+    return 'break'
+
+
+class TreeNode:
+
+    def __init__(self, canvas, parent, item, parents):
+        self.canvas = canvas
+        self.parent = parent
+        self.parents = parents
+        self.item = item
+        self.state = 'collapsed'
+        self.selected = False
+        self.children = []
+        self.x = self.y = None
+        self.iconimages = {}  # cache of PhotoImage instances for icons
+
+    def destroy(self):
+        for c in self.children[:]:
+            self.children.remove(c)
+            c.destroy()
+        self.parent = None
+
+    def geticonimage(self, name):
+        try:
+            return self.iconimages[name]
+        except KeyError:
+            pass
+        file, ext = os.path.splitext(name)
+        ext = ext or ".gif"
+        fullname = os.path.join(ICONDIR, file + ext)
+        image = PhotoImage(master=self.canvas, file=fullname)
+        self.iconimages[name] = image
+        return image
+
+    def select(self, event=None):
+        if self.selected:
+            return
+        self.deselectall()
+        self.selected = True
+        self.canvas.delete(self.image_id)
+        self.drawicon()
+        self.drawtext()
+
+    def deselect(self, event=None):
+        if not self.selected:
+            return
+        self.selected = False
+        self.canvas.delete(self.image_id)
+        self.drawicon()
+        self.drawtext()
+
+    def deselectall(self):
+        if self.parent:
+            self.parent.deselectall()
+        else:
+            self.deselecttree()
+
+    def deselecttree(self):
+        if self.selected:
+            self.deselect()
+        for child in self.children:
+            child.deselecttree()
+
+    def flip(self, event=None):
+        if os.path.isfile(self.item.path):
+            self.parents.paths.append(self.item.path)
+            encoding = self.parents.encoding
+            try:
+                self.parents.choose_encodings('gbk')
+                self.parents.encoding = 'GBK'
+            except UnicodeError:
+                try:
+                    self.parents.choose_encodings('gb2312')
+                    self.parents.encoding = 'GB2312'
+                except UnicodeError:
+                    try:
+                        self.parents.choose_encodings('utf-8')
+                        self.parents.encoding = 'UTF-8'
+                    except UnicodeError:
+                        try:
+                            self.parents.choose_encodings('ANSI')
+                            self.parents.encoding = 'ANSI'
+                        except UnicodeError:
+                            try:
+                                self.parents.encoding = '二进制'
+                                self.parents.name.append(os.path.basename(self.parents.paths[-1]))
+                                self.parents.frame.append(Frame(self.parents))
+                                if os.path.basename(self.parents.paths[-1]).split('.')[-1].lower() in (
+                                        'jpg', 'jpeg', 'png', 'gif', 'bmp', 'ico'):
+                                    self.parents.text.append(
+                                        PhotoEdit(self.parents.frame[-1], self.parents.paths[-1]))
+                                elif os.path.basename(self.parents.paths[-1]).split('.')[-1].lower() in ('mp3', 'ogg'):
+                                    self.parents.text.append(
+                                        MediaPlayer(self.parents.frame[-1], self.parents.paths[-1])
+                                    )
+                                else:
+                                    while True:
+                                        if Messagebox.okcancel("文件被以错误的编码加载,\n是否以二进制读写?",
+                                                               "编码错误") == "确定":
+                                            self.parents.text.append(
+                                                TextEdit(self.parents.frame[-1], font=self.parents.fontname, undo=True,
+                                                         borderwidth=1))
+                                            self.parents.text[-1].delete("1.0", END)
+                                            with open(self.parents.paths[-1], 'rb') as fo:
+                                                self.parents.text[-1].insert(END, hex(int.from_bytes(fo.read())))
+                                            break
+                                        else:
+                                            try:
+                                                self.parents.choose_encodings(askencoding())
+                                                self.parents.saves(
+                                                    self.parents.paths[self.parents.note.index(self.parents.note.select())])
+                                            except UnicodeError:
+                                                pass
+                                            else:
+                                                break
+                                            finally:
+                                                pass
+                                self.parents.text[-1].pack(fill=BOTH, expand=YES)
+                                self.parents.text[-1].tag_configure("found", background="yellow")
+                                self.parents.note.add(self.parents.frame[-1], text=self.parents.name[-1])
+                                self.parents.note.select((self.parents.frame[-1]))
+                                self.parents.binds(self.parents.text[-1])
+                            except UnicodeError:
+                                Messagebox.show_error("打开失败", "Error")
+                                print(
+                                    f"打开文件{self.parents.paths[self.parents.note.index(self.parents.note.select())]}失败")
+                                self.parents.encoding = encoding
+                            except TclError:
+                                os.remove(f"C:/Users/{getpass.getuser()}/AppData/Local/Temp/python_notepad.tmp")
+                                self.parents.show()
+            self.parents.saves(self.item.path)
+        print(self.parents.paths)
+        if self.state == 'expanded':
+            self.collapse()
+        else:
+            self.expand()
+        self.item.OnDoubleClick()
+        return "break"
+
+    def expand(self, event=None):
+        if not self.item._IsExpandable():
+            return
+        if self.state != 'expanded':
+            self.state = 'expanded'
+            self.update()
+            self.view()
+
+    def collapse(self, event=None):
+        if self.state != 'collapsed':
+            self.state = 'collapsed'
+            self.update()
+
+    def view(self):
+        top = self.y - 2
+        bottom = self.lastvisiblechild().y + 17
+        height = bottom - top
+        visible_top = self.canvas.canvasy(0)
+        visible_height = self.canvas.winfo_height()
+        visible_bottom = self.canvas.canvasy(visible_height)
+        if visible_top <= top and bottom <= visible_bottom:
+            return
+        x0, y0, x1, y1 = self.canvas._getints(self.canvas['scrollregion'])
+        if top >= visible_top and height <= visible_height:
+            fraction = top + height - visible_height
+        else:
+            fraction = top
+        fraction = float(fraction) / y1
+        self.canvas.yview_moveto(fraction)
+
+    def lastvisiblechild(self):
+        if self.children and self.state == 'expanded':
+            return self.children[-1].lastvisiblechild()
+        else:
+            return self
+
+    def update(self):
+        if self.parent:
+            self.parent.update()
+        else:
+            oldcursor = self.canvas['cursor']
+            self.canvas['cursor'] = "watch"
+            self.canvas.update()
+            self.canvas.delete(ALL)  # XXX could be more subtle
+            self.draw(7, 2)
+            x0, y0, x1, y1 = self.canvas.bbox(ALL)
+            self.canvas.configure(scrollregion=(0, 0, x1, y1))
+            self.canvas['cursor'] = oldcursor
+
+    def draw(self, x, y):
+        # XXX This hard-codes too many geometry constants!
+        dy = 20
+        self.x, self.y = x, y
+        self.drawicon()
+        self.drawtext()
+        if self.state != 'expanded':
+            return y + dy
+        # draw children
+        if not self.children:
+            sublist = self.item._GetSubList()
+            if not sublist:
+                # _IsExpandable() was mistaken; that's allowed
+                return y + 17
+            for item in sublist:
+                child = self.__class__(self.canvas, self, item, self.parents)
+                self.children.append(child)
+        cx = x + 20
+        cy = y + dy
+        cylast = 0
+        for child in self.children:
+            cylast = cy
+            self.canvas.create_line(x + 9, cy + 7, cx, cy + 7, fill="gray50")
+            cy = child.draw(cx, cy)
+            if child.item._IsExpandable():
+                if child.state == 'expanded':
+                    iconname = "minusnode"
+                    callback = child.collapse
+                else:
+                    iconname = "plusnode"
+                    callback = child.expand
+                image = self.geticonimage(iconname)
+                id = self.canvas.create_image(x + 9, cylast + 7, image=image)
+                # XXX This leaks bindings until canvas is deleted:
+                self.canvas.tag_bind(id, "<1>", callback)
+                self.canvas.tag_bind(id, "<Double-1>", lambda x: None)
+        id = self.canvas.create_line(x + 9, y + 10, x + 9, cylast + 7,
+                                     ##stipple="gray50",     # XXX Seems broken in Tk 8.0.x
+                                     fill="gray50")
+        self.canvas.tag_lower(id)  # XXX .lower(id) before Python 1.5.2
+        return cy
+
+    def drawicon(self):
+        if self.selected:
+            imagename = (self.item.GetSelectedIconName() or
+                         self.item.GetIconName() or
+                         "openfolder")
+        else:
+            imagename = self.item.GetIconName() or "folder"
+        image = self.geticonimage(imagename)
+        id = self.canvas.create_image(self.x, self.y, anchor="nw", image=image)
+        self.image_id = id
+        self.canvas.tag_bind(id, "<1>", self.select)
+        self.canvas.tag_bind(id, "<Double-1>", self.flip)
+
+    def drawtext(self):
+        textx = self.x + 20 - 1
+        texty = self.y - 4
+        labeltext = self.item.GetLabelText()
+        if labeltext:
+            id = self.canvas.create_text(textx, texty, anchor="nw",
+                                         text=labeltext)
+            self.canvas.tag_bind(id, "<1>", self.select)
+            self.canvas.tag_bind(id, "<Double-1>", self.flip)
+            x0, y0, x1, y1 = self.canvas.bbox(id)
+            textx = max(x1, 200) + 10
+        text = self.item.GetText() or "<no text>"
+        try:
+            self.entry
+        except AttributeError:
+            pass
+        else:
+            self.edit_finish()
+        try:
+            self.label
+        except AttributeError:
+            # padding carefully selected (on Windows) to match Entry widget:
+            self.label = Label(self.canvas, text=text)
+        theme = idleConf.CurrentTheme()
+        if self.selected:
+            self.label.configure(idleConf.GetHighlight(theme, 'hilite'))
+        else:
+            self.label.configure(idleConf.GetHighlight(theme, 'normal'))
+        id = self.canvas.create_window(textx, texty,
+                                       anchor="nw", window=self.label)
+        self.label.bind("<1>", self.select_or_edit)
+        self.label.bind("<Double-1>", self.flip)
+        self.label.bind("<MouseWheel>", lambda e: wheel_event(e, self.canvas))
+        self.label.bind("<Button-4>", lambda e: wheel_event(e, self.canvas))
+        self.label.bind("<Button-5>", lambda e: wheel_event(e, self.canvas))
+        self.text_id = id
+
+    def select_or_edit(self, event=None):
+        if self.selected and self.item.IsEditable():
+            self.edit(event)
+        else:
+            self.select(event)
+
+    def edit(self, event=None):
+        self.entry = Entry(self.label, width=0)
+        self.entry.insert(0, self.label['text'])
+        self.entry.selection_range(0, END)
+        self.entry.pack(ipadx=5)
+        self.entry.focus_set()
+        self.entry.bind("<Return>", self.edit_finish)
+        self.entry.bind("<Escape>", self.edit_cancel)
+
+    def edit_finish(self, event=None):
+        try:
+            entry = self.entry
+            del self.entry
+        except AttributeError:
+            return
+        text = entry.get()
+        entry.destroy()
+        if text and text != self.item.GetText():
+            self.item.SetText(text)
+        text = self.item.GetText()
+        self.label['text'] = text
+        self.drawtext()
+        self.canvas.focus_set()
+
+    def edit_cancel(self, event=None):
+        try:
+            entry = self.entry
+            del self.entry
+        except AttributeError:
+            return
+        entry.destroy()
+        self.drawtext()
+        self.canvas.focus_set()
+
+
+class TreeItem:
+    """Abstract class representing tree items.
+
+    Methods should typically be overridden, otherwise a default action
+    is used.
+
+    """
+
+    def __init__(self):
+        """Constructor.  Do whatever you need to do."""
+
+    def GetText(self):
+        """Return text string to display."""
+
+    def GetLabelText(self):
+        """Return label text string to display in front of text (if any)."""
+
+    expandable = None
+
+    def _IsExpandable(self):
+        """Do not override!  Called by TreeNode."""
+        if self.expandable is None:
+            self.expandable = self.IsExpandable()
+        return self.expandable
+
+    def IsExpandable(self):
+        """Return whether there are subitems."""
+        return 1
+
+    def _GetSubList(self):
+        """Do not override!  Called by TreeNode."""
+        if not self.IsExpandable():
+            return []
+        sublist = self.GetSubList()
+        if not sublist:
+            self.expandable = 0
+        return sublist
+
+    def IsEditable(self):
+        """Return whether the item's text may be edited."""
+
+    def SetText(self, text):
+        """Change the item's text (if it is editable)."""
+
+    def GetIconName(self):
+        """Return name of icon to be displayed normally."""
+
+    def GetSelectedIconName(self):
+        """Return name of icon to be displayed when selected."""
+
+    def GetSubList(self):
+        """Return list of items forming sublist."""
+
+    def OnDoubleClick(self):
+        """Called on a double-click on the item."""
+
+
+# Example application
+
+class FileTreeItem(TreeItem):
+    """Example TreeItem subclass -- browse the file system."""
+
+    def __init__(self, path):
+        self.path = path
+
+    def GetText(self):
+        return os.path.basename(self.path) or self.path
+
+    def IsEditable(self):
+        return os.path.basename(self.path) != ""
+
+    def SetText(self, text):
+        newpath = os.path.dirname(self.path)
+        newpath = os.path.join(newpath, text)
+        if os.path.dirname(newpath) != os.path.dirname(self.path):
+            return
+        try:
+            os.rename(self.path, newpath)
+            self.path = newpath
+        except OSError:
+            pass
+
+    def GetIconName(self):
+        if not self.IsExpandable():
+            return "python"  # XXX wish there was a "file" icon
+
+    def IsExpandable(self):
+        return os.path.isdir(self.path)
+
+    def GetSubList(self):
+        try:
+            names = os.listdir(self.path)
+        except OSError:
+            return []
+        names.sort(key=os.path.normcase)
+        dir = []
+        base = []
+        for i in names:
+            if os.path.isdir(os.path.join(self.path, i)):
+                dir.append(i)
+            else:
+                base.append(i)
+        names = dir + base
+        sublist = []
+        for name in names:
+            item = FileTreeItem(os.path.join(self.path, name))
+            sublist.append(item)
+        return sublist
+
+
+# A canvas widget with scroll bars and some useful bindings
+
+class ScrolledCanvas:
+
+    def __init__(self, master, **opts):
+        if 'yscrollincrement' not in opts:
+            opts['yscrollincrement'] = 17
+        self.master = master
+        self.frame = Frame(master, width=150)
+        self.frame.rowconfigure(0, weight=1)
+        self.frame.columnconfigure(0, weight=1)
+        self.canvas = Canvas(self.frame, width=140, **opts)
+        self.canvas.grid(row=0, column=0, sticky="nsew")
+        self.vbar = Scrollbar(self.frame, name="vbar")
+        self.vbar.grid(row=0, column=1, sticky="nse")
+        self.hbar = Scrollbar(self.frame, name="hbar", orient="horizontal")
+        self.hbar.grid(row=1, column=0, sticky="ews")
+        self.canvas['yscrollcommand'] = self.vbar.set
+        self.vbar['command'] = self.canvas.yview
+        self.canvas['xscrollcommand'] = self.hbar.set
+        self.hbar['command'] = self.canvas.xview
+        self.canvas.bind("<Key-Prior>", self.page_up)
+        self.canvas.bind("<Key-Next>", self.page_down)
+        self.canvas.bind("<Key-Up>", self.unit_up)
+        self.canvas.bind("<Key-Down>", self.unit_down)
+        self.canvas.bind("<MouseWheel>", wheel_event)
+        self.canvas.bind("<Button-4>", wheel_event)
+        self.canvas.bind("<Button-5>", wheel_event)
+        # if isinstance(master, Toplevel) or isinstance(master, Tk):
+        self.canvas.bind("<Alt-Key-2>", self.zoom_height)
+        self.canvas.focus_set()
+
+    def page_up(self, event):
+        self.canvas.yview_scroll(-1, "page")
+        return "break"
+
+    def page_down(self, event):
+        self.canvas.yview_scroll(1, "page")
+        return "break"
+
+    def unit_up(self, event):
+        self.canvas.yview_scroll(-1, "unit")
+        return "break"
+
+    def unit_down(self, event):
+        self.canvas.yview_scroll(1, "unit")
+        return "break"
+
+    def zoom_height(self, event):
+        zoomheight.zoom_height(self.master)
+        return "break"
+
+
+class EncodingDialog(Toplevel):
+    def __init__(self):
+        super().__init__()
+        self.geometry("230x300")
+        self.resizable(False, False)
+        self.title("选择编码")
+        self.result = 'gbk'
+        Label(self, text='选择编码').pack(anchor=W, side=TOP)
+        self.frm = ScrolledFrame(self)
+        self.frm.pack(fill=BOTH, expand=YES)
+        # coding = ['ASCII', 'ANSI', 'CESU-8', 'GB18030', 'GB2312', 'GBK', 'ISO-8859-1', 'ISO-8859-13', 'ISO-8859-15',
+        #           'ISO-8859-16', 'Latin-1', 'Unicode', 'US-ASCII', 'UTF-8', 'UTF-8BE',
+        #           'UTF-8LE', 'UTF-16', 'UTF-16BE', 'UTF-16LE', 'UTF-32', 'UTF-32BE', 'UTF-32LE']
+        coding = ['ascii', 'big5', 'big5hkscs', 'charmap', 'cp037', 'cp1006', 'cp1026', 'cp1125', 'cp1140', 'cp1250',
+                  'cp1251', 'cp1252', 'cp1253', 'cp1254', 'cp1255', 'cp1256', 'cp1257', 'cp1258', 'cp273', 'cp424',
+                  'cp437', 'cp500', 'cp720', 'cp737', 'cp775', 'cp850', 'cp852', 'cp855', 'cp856', 'cp857', 'cp858',
+                  'cp860', 'cp861', 'cp862', 'cp863', 'cp864', 'cp865', 'cp866', 'cp869', 'cp874', 'cp875', 'cp932',
+                  'cp949', 'cp950', 'euc_jis_2004', 'euc_jisx0213', 'euc_jp', 'euc_kr', 'gb18030', 'gb2312', 'gbk',
+                  'hp_roman8', 'hz', 'idna', 'iso2022_jp', 'iso2022_jp_1', 'iso2022_jp_2', 'iso2022_jp_2004',
+                  'iso2022_jp_3', 'iso2022_jp_ext', 'iso2022_kr', 'iso8859_1', 'iso8859_10', 'iso8859_11', 'iso8859_13',
+                  'iso8859_14', 'iso8859_15', 'iso8859_16', 'iso8859_2', 'iso8859_3', 'iso8859_4', 'iso8859_5',
+                  'iso8859_6', 'iso8859_7', 'iso8859_8', 'iso8859_9', 'johab', 'koi8_r', 'koi8_t', 'koi8_u', 'kz1048',
+                  'latin_1', 'mac_arabic', 'mac_croatian', 'mac_cyrillic', 'mac_farsi', 'mac_greek', 'mac_iceland',
+                  'mac_latin2', 'mac_roman', 'mac_romanian', 'mac_turkish', 'mbcs', 'oem', 'palmos', 'ptcp154',
+                  'punycode', 'raw_unicode_escape', 'shift_jis', 'shift_jis_2004', 'shift_jisx0213', 'tis_620',
+                  'unicode_escape', 'utf_16', 'utf_16_be', 'utf_16_le', 'utf_32', 'utf_32_be', 'utf_32_le', 'utf_7',
+                  'utf_8', 'utf_8_sig']
+        self.sv = StringVar()
+        for i in range(len(coding)):
+            Radiobutton(self.frm, variable=self.sv, value=coding[i], text=coding[i], bootstyle=SECONDARY).pack(side=TOP,
+                                                                                                               anchor=W)
+        self.sv.set('gbk')
+        Button(self, text="确定", command=self.ok).pack(anchor=E, side=TOP)
+        self.wait_window()
+
+    def ok(self):
+        self.result = self.sv.get()
+        self.destroy()
+
+
+def askencoding():
+    window = EncodingDialog()
+    return window.result
 
 
 def gettime(): return time.strftime("%Y-%m-%d %H:%M:%S", time.localtime())
@@ -141,369 +696,71 @@ def runcalc():
     en1.place(width=400, height=40, rely=0.01)
     en2 = Entry(tk)
     en2.place(width=400, rely=0.09, height=40)
-    Button(
-        tk,
-        text=1,
-        command=lambda: jia(1)).place(
-        width=60,
-        height=60,
-        relx=0,
-        rely=0.17)
-    Button(
-        tk,
-        text=2,
-        command=lambda: jia(2)).place(
-        width=60,
-        height=60,
-        relx=0.16,
-        rely=0.17)
-    Button(
-        tk,
-        text=3,
-        command=lambda: jia(3)).place(
-        width=60,
-        height=60,
-        relx=0.32,
-        rely=0.17)
-    Button(
-        tk,
-        text='+',
-        command=lambda: jia('+'),
-        bootstyle='secondary').place(
-        width=60,
-        height=60,
-        relx=0.48,
-        rely=0.17)
-    Button(
-        tk,
-        text='-',
-        command=lambda: jia('-'),
-        bootstyle='secondary').place(
-        width=60,
-        height=60,
-        relx=0.48,
-        rely=0.29)
-    Button(
-        tk,
-        text='×',
-        command=lambda: jia('x'),
-        bootstyle='secondary').place(
-        width=60,
-        height=60,
-        relx=0.48,
-        rely=0.41)
-    Button(
-        tk,
-        text='÷',
-        command=lambda: jia('÷'),
-        bootstyle='secondary').place(
-        width=60,
-        height=60,
-        relx=0.48,
-        rely=0.53)
-    Button(
-        tk,
-        text='√(',
-        command=lambda: jia('math.sqrt('),
-        bootstyle='secondary').place(
-        width=60,
-        height=60,
-        relx=0.64,
-        rely=0.17)
-    Button(
-        tk,
-        text='sin',
-        command=lambda: jia('math.sin('),
-        bootstyle='secondary').place(
-        width=60,
-        height=60,
-        relx=0.8,
-        rely=0.29)
-    Button(
-        tk,
-        text='tan',
-        command=lambda: jia('math.tan('),
-        bootstyle='secondary').place(
-        width=60,
-        height=60,
-        relx=0.8,
-        rely=0.41)
-    Button(
-        tk,
-        text='cos',
-        command=lambda: jia('math.cos('),
-        bootstyle='secondary').place(
-        width=60,
-        height=60,
-        relx=0.8,
-        rely=0.53)
-    Button(
-        tk,
-        text='清除',
-        command=clean,
-        bootstyle='secondary').place(
-        width=60,
-        height=60,
-        relx=0.80,
-        rely=0.17)
-    Button(
-        tk,
-        text='^2',
-        command=lambda: jia('^2'),
-        bootstyle='secondary').place(
-        width=60,
-        height=60,
-        relx=0.64,
-        rely=0.29)
-    Button(
-        tk,
-        text='^',
-        command=lambda: jia('^'),
-        bootstyle='secondary').place(
-        width=60,
-        height=60,
-        relx=0.64,
-        rely=0.41)
-    Button(
-        tk,
-        text='=',
-        command=run,
-        bootstyle='	success').place(
-        width=60,
-        height=60,
-        relx=0.64,
-        rely=0.53)
-    Button(
-        tk,
-        text=4,
-        command=lambda: jia(4)).place(
-        width=60,
-        height=60,
-        relx=0,
-        rely=0.29)
-    Button(
-        tk,
-        text=5,
-        command=lambda: jia(5)).place(
-        width=60,
-        height=60,
-        relx=0.16,
-        rely=0.29)
-    Button(
-        tk,
-        text=6,
-        command=lambda: jia(6)).place(
-        width=60,
-        height=60,
-        relx=0.32,
-        rely=0.29)
-    Button(
-        tk,
-        text=7,
-        command=lambda: jia(7)).place(
-        width=60,
-        height=60,
-        relx=0,
-        rely=0.41)
-    Button(
-        tk,
-        text=8,
-        command=lambda: jia(8)).place(
-        width=60,
-        height=60,
-        relx=0.16,
-        rely=0.41)
-    Button(
-        tk,
-        text=9,
-        command=lambda: jia(9)).place(
-        width=60,
-        height=60,
-        relx=0.32,
-        rely=0.41)
-    Button(
-        tk,
-        text='(',
-        bootstyle='secondary',
-        command=lambda: jia('(')).place(
-        width=60,
-        height=60,
-        relx=0,
-        rely=0.53)
-    Button(
-        tk,
-        text=0,
-        command=lambda: jia(0)).place(
-        width=60,
-        height=60,
-        relx=0.16,
-        rely=0.53)
-    Button(tk, text=')',
-           bootstyle='secondary',
-           command=lambda: jia(')')).place(
-        width=60, height=60, relx=0.32, rely=0.53)
-    Button(
-        tk,
-        text='DEL',
-        bootstyle='secondary',
-        command=delete).place(
-        width=60,
-        height=60,
-        relx=0,
-        rely=0.65)
-    Button(
-        tk,
-        text='%',
-        bootstyle='secondary',
-        command=lambda: jia('%')).place(
-        width=60,
-        height=60,
-        relx=0.16,
-        rely=0.65)
-    Button(
-        tk,
-        text='mod',
-        bootstyle='secondary',
-        command=lambda: jia('mod')).place(
-        width=60,
-        height=60,
-        relx=0.32,
-        rely=0.65)
-    Button(
-        tk,
-        text='.',
-        bootstyle='secondary',
-        command=lambda: jia('.')).place(
-        width=60,
-        height=60,
-        relx=0.48,
-        rely=0.65)
-    Button(
-        tk,
-        text='1/x',
-        bootstyle='secondary',
-        command=jiax).place(
-        width=60,
-        height=60,
-        relx=0.64,
-        rely=0.65)
-    Button(
-        tk,
-        text='八进制',
-        bootstyle='secondary',
-        command=lambda: jinzhi(8)).place(
-        width=60,
-        height=60,
-        relx=0,
-        rely=0.77)
-    Button(
-        tk,
-        text='十进制',
-        bootstyle='secondary',
-        command=lambda: jinzhi(10)).place(
-        width=60,
-        height=60,
-        relx=0.16,
-        rely=0.77)
-    Button(
-        tk,
-        text='十六进制',
-        bootstyle='secondary',
-        command=lambda: jinzhi(16)).place(
-        width=60,
-        height=60,
-        relx=0.32,
-        rely=0.77)
-    Button(
-        tk,
-        text='m+',
-        bootstyle='secondary',
-        command=mplus).place(
-        width=60,
-        height=60,
-        relx=0.48,
-        rely=0.77)
-    Button(
-        tk,
-        text='m-',
-        bootstyle='secondary',
-        command=muplus).place(
-        width=60,
-        height=60,
-        relx=0.64,
-        rely=0.77)
-    Button(
-        tk,
-        text='mr',
-        bootstyle='secondary',
-        command=lambda: en1.insert(END, mr)).place(
-        width=60,
-        height=60,
-        relx=0.80,
-        rely=0.77)
-    Button(
-        tk,
-        text='mc',
-        bootstyle='secondary',
-        command=mc).place(
-        width=60,
-        height=60,
-        relx=0.8,
-        rely=0.65)
-    Button(
-        tk,
-        text='计算日\n期之差',
-        bootstyle='secondary',
-        command=date).place(
-        width=60,
-        height=60,
-        relx=0,
-        rely=0.89)
-    Button(
-        tk,
-        text='sinh',
-        bootstyle='secondary',
-        command=lambda: jia('math.sinh(')).place(
-        width=60,
-        height=60,
-        relx=0.16,
-        rely=0.89)
-    Button(
-        tk,
-        text='cosh',
-        bootstyle='secondary',
-        command=lambda: jia('math.cosh(')).place(
-        width=60,
-        height=60,
-        relx=0.32,
-        rely=0.89)
-    Button(
-        tk,
-        text='tanh',
-        bootstyle='secondary',
-        command=lambda: jia('math.tanh')).place(
-        width=60,
-        height=60,
-        relx=0.48,
-        rely=0.89)
-    Button(
-        tk,
-        text='10^',
-        bootstyle='secondary',
-        command=lambda: jia('10^')).place(
-        width=60,
-        height=60,
-        relx=0.64,
-        rely=0.89)
-    Button(
-        tk,
-        text='π',
-        bootstyle='secondary',
-        command=lambda: jia('π')).place(
-        width=60,
-        height=60,
-        relx=0.8,
-        rely=0.89)
+    Button(tk, text=1, command=lambda: jia(1)).place(width=60, height=60, relx=0, rely=0.17)
+    Button(tk, text=2, command=lambda: jia(2)).place(width=60, height=60, relx=0.16, rely=0.17)
+    Button(tk, text=3, command=lambda: jia(3)).place(width=60, height=60, relx=0.32, rely=0.17)
+    Button(tk, text='+', command=lambda: jia('+'), bootstyle='secondary').place(width=60, height=60, relx=0.48,
+                                                                                rely=0.17)
+    Button(tk, text='-', command=lambda: jia('-'), bootstyle='secondary').place(width=60, height=60, relx=0.48,
+                                                                                rely=0.29)
+    Button(tk, text='×', command=lambda: jia('x'), bootstyle='secondary').place(width=60, height=60, relx=0.48,
+                                                                                rely=0.41)
+    Button(tk, text='÷', command=lambda: jia('÷'), bootstyle='secondary').place(width=60, height=60, relx=0.48,
+                                                                                rely=0.53)
+    Button(tk, text='√(', command=lambda: jia('math.sqrt('), bootstyle='secondary').place(width=60, height=60,
+                                                                                          relx=0.64, rely=0.17)
+    Button(tk, text='sin', command=lambda: jia('math.sin('), bootstyle='secondary').place(width=60, height=60, relx=0.8,
+                                                                                          rely=0.29)
+    Button(tk, text='tan', command=lambda: jia('math.tan('), bootstyle='secondary').place(width=60, height=60, relx=0.8,
+                                                                                          rely=0.41)
+    Button(tk, text='cos', command=lambda: jia('math.cos('), bootstyle='secondary').place(width=60, height=60, relx=0.8,
+                                                                                          rely=0.53)
+    Button(tk, text='清除', command=clean, bootstyle='secondary').place(width=60, height=60, relx=0.80, rely=0.17)
+    Button(tk, text='^2', command=lambda: jia('^2'), bootstyle='secondary').place(width=60, height=60, relx=0.64,
+                                                                                  rely=0.29)
+    Button(tk, text='^', command=lambda: jia('^'), bootstyle='secondary').place(width=60, height=60, relx=0.64,
+                                                                                rely=0.41)
+    Button(tk, text='=', command=run, bootstyle='	success').place(width=60, height=60, relx=0.64, rely=0.53)
+    Button(tk, text=4, command=lambda: jia(4)).place(width=60, height=60, relx=0, rely=0.29)
+    Button(tk, text=5, command=lambda: jia(5)).place(width=60, height=60, relx=0.16, rely=0.29)
+    Button(tk, text=6, command=lambda: jia(6)).place(width=60, height=60, relx=0.32, rely=0.29)
+    Button(tk, text=7, command=lambda: jia(7)).place(width=60, height=60, relx=0, rely=0.41)
+    Button(tk, text=8, command=lambda: jia(8)).place(width=60, height=60, relx=0.16, rely=0.41)
+    Button(tk, text=9, command=lambda: jia(9)).place(width=60, height=60, relx=0.32, rely=0.41)
+    Button(tk, text='(', bootstyle='secondary', command=lambda: jia('(')).place(width=60, height=60, relx=0, rely=0.53)
+    Button(tk, text=0, command=lambda: jia(0)).place(width=60, height=60, relx=0.16, rely=0.53)
+    Button(tk, text=')', bootstyle='secondary', command=lambda: jia(')')).place(width=60, height=60, relx=0.32,
+                                                                                rely=0.53)
+    Button(tk, text='DEL', bootstyle='secondary', command=delete).place(width=60, height=60, relx=0, rely=0.65)
+    Button(tk, text='%', bootstyle='secondary', command=lambda: jia('%')).place(width=60, height=60, relx=0.16,
+                                                                                rely=0.65)
+    Button(tk, text='mod', bootstyle='secondary', command=lambda: jia('mod')).place(width=60, height=60, relx=0.32,
+                                                                                    rely=0.65)
+    Button(tk, text='.', bootstyle='secondary', command=lambda: jia('.')).place(width=60, height=60, relx=0.48,
+                                                                                rely=0.65)
+    Button(tk, text='1/x', bootstyle='secondary', command=jiax).place(width=60, height=60, relx=0.64, rely=0.65)
+    Button(tk, text='八进制', bootstyle='secondary', command=lambda: jinzhi(8)).place(width=60, height=60, relx=0,
+                                                                                      rely=0.77)
+    Button(tk, text='十进制', bootstyle='secondary', command=lambda: jinzhi(10)).place(width=60, height=60, relx=0.16,
+                                                                                       rely=0.77)
+    Button(tk, text='十六进制', bootstyle='secondary', command=lambda: jinzhi(16)).place(width=60, height=60, relx=0.32,
+                                                                                         rely=0.77)
+    Button(tk, text='m+', bootstyle='secondary', command=mplus).place(width=60, height=60, relx=0.48, rely=0.77)
+    Button(tk, text='m-', bootstyle='secondary', command=muplus).place(width=60, height=60, relx=0.64, rely=0.77)
+    Button(tk, text='mr', bootstyle='secondary', command=lambda: en1.insert(END, mr)).place(width=60, height=60,
+                                                                                            relx=0.80, rely=0.77)
+    Button(tk, text='mc', bootstyle='secondary', command=mc).place(width=60, height=60, relx=0.8, rely=0.65)
+    Button(tk, text='计算日\n期之差', bootstyle='secondary', command=date).place(width=60, height=60, relx=0, rely=0.89)
+    Button(tk, text='sinh', bootstyle='secondary', command=lambda: jia('math.sinh(')).place(width=60, height=60,
+                                                                                            relx=0.16, rely=0.89)
+    Button(tk, text='cosh', bootstyle='secondary', command=lambda: jia('math.cosh(')).place(width=60, height=60,
+                                                                                            relx=0.32, rely=0.89)
+    Button(tk, text='tanh', bootstyle='secondary', command=lambda: jia('math.tanh')).place(width=60, height=60,
+                                                                                           relx=0.48, rely=0.89)
+    Button(tk, text='10^', bootstyle='secondary', command=lambda: jia('10^')).place(width=60, height=60, relx=0.64,
+                                                                                    rely=0.89)
+    Button(tk, text='π', bootstyle='secondary', command=lambda: jia('π')).place(width=60, height=60, relx=0.8,
+                                                                                rely=0.89)
     tk.mainloop()
 
 
@@ -1352,18 +1609,18 @@ Ctrl+Alt+u增加行,Ctrl+Alt+p删除行\n\
     def show_info(string, title):
         # root = Window(title=title, size=(570, 400), position=(620, 250), resizable=(False, False))
         root = Toplevel()
+        root.geometry('640x400+620+250')
         root.title(title)
-        root.geometry('570x400+620+250')
-        root.resizable(False, False)
+        # root.resizable(False, False)
         root.iconbitmap(os.path.join(os.path.dirname(sys.argv[0]), '.\\icon\\notepad.ico'))
-        text = ScrolledText(root, background="white", relief=FLAT)
-        text.pack()
+        text = ScrolledText(root, background="white", relief=FLAT, bootstyle=ROUND)
+        text.pack(fill=BOTH, expand=YES)
         text.insert(1.0, string)
-        text.configure(state='disabled')
-        root.mainloop()
+        # text.configure(state='disabled')
+        root.wait_window()
 
     @staticmethod
-    def show_file(path, lengh, gets):
+    def show_file(path, length, gets):
         root = Window(title="文件信息", size=(300, 200), position=(620, 250))
         root.iconbitmap(os.path.join(os.path.dirname(sys.argv[0]), '.\\icon\\notepad.ico'))
         try:
@@ -1379,7 +1636,7 @@ Ctrl+Alt+u增加行,Ctrl+Alt+p删除行\n\
                 ("访问日期:", datetime.fromtimestamp(get.st_atime)),
                 ("修改日期:", datetime.fromtimestamp(get.st_mtime)),
                 ("创建日期:", datetime.fromtimestamp(get.st_ctime)),
-                ("文本长度:", lengh),
+                ("文本长度:", length),
                 ("文本行数:", gets.count("\n"))
             )
             y = 0
@@ -1619,7 +1876,7 @@ Ctrl+Alt+u增加行,Ctrl+Alt+p删除行\n\
             self.name.append(os.path.basename(path))
             self.frame.append(Frame(self))
             if os.path.basename(path).split('.')[-1].lower() in (
-            'jpg', 'jpeg', 'png', 'gif', 'bmp', 'ico', 'webp', 'ppm', 'sgl', 'tiff'):
+                    'jpg', 'jpeg', 'png', 'gif', 'bmp', 'ico', 'webp', 'ppm', 'sgl', 'tiff'):
                 self.text.append(
                     PhotoEdit(self.frame[-1], path))
             elif os.path.basename(path).split('.')[-1].lower() in ('mp3', 'ogg'):
@@ -1690,11 +1947,25 @@ Ctrl+Alt+u增加行,Ctrl+Alt+p删除行\n\
                                     MediaPlayer(self.frame[-1], self.paths[-1])
                                 )
                             else:
-                                self.text.append(
-                                    TextEdit(self.frame[-1], font=self.fontname, undo=True, borderwidth=1))
-                                self.text[-1].delete("1.0", END)
-                                with open(self.paths[-1], 'rb') as fo:
-                                    self.text[-1].insert(END, hex(int.from_bytes(fo.read())))
+                                while True:
+                                    if Messagebox.okcancel("文件被以错误的编码加载,\n是否以二进制读写?",
+                                                           "编码错误") == "确定":
+                                        self.text.append(
+                                            TextEdit(self.frame[-1], font=self.fontname, undo=True, borderwidth=1))
+                                        self.text[-1].delete("1.0", END)
+                                        with open(self.paths[-1], 'rb') as fo:
+                                            self.text[-1].insert(END, hex(int.from_bytes(fo.read())))
+                                        break
+                                    else:
+                                        try:
+                                            self.choose_encodings(askencoding())
+                                            self.saves(self.paths[self.note.index(self.note.select())])
+                                        except UnicodeError:
+                                            pass
+                                        else:
+                                            break
+                                        finally:
+                                            pass
                             self.text[-1].pack(fill=BOTH, expand=YES)
                             self.text[-1].tag_configure("found", background="yellow")
                             self.note.add(self.frame[-1], text=self.name[-1])
@@ -1723,6 +1994,14 @@ Ctrl+Alt+u增加行,Ctrl+Alt+p删除行\n\
                 self.paths.append(pathes)
                 self.chooses()
                 self.saves(self.paths[self.note.index(self.note.select())])
+
+    def open_dir(self):
+        # self.dir = ScrolledCanvas(self)
+        path = askdirectory()
+        if path != '':
+            self.item = FileTreeItem(path)
+            self.node = TreeNode(self.dir.canvas, None, self.item, self)
+            self.node.expand()
 
     def opens(self, mode, encoding):
         encodings = self.encoding
@@ -2127,7 +2406,10 @@ Ctrl+Alt+u增加行,Ctrl+Alt+p删除行\n\
             self.label4['text'] = '无标题'
 
     def _Configuration_frames(self, ww, wh, ly, index_):
-        self.files.place(width=150, height=wh - 44, y=22)
+        self.files.pack(side=TOP, fill=Y, anchor=W)
+
+        self.dir.frame.pack(side=TOP, fill=Y, anchor=W)
+        # self.dir.frame.config(height=self.winfo_height()-44-self.files.winfo_height())
         try:
             # print(len(text))
             self.note.place(width=ww - 150, height=wh - 18)
@@ -2260,6 +2542,11 @@ Ctrl+Alt+u增加行,Ctrl+Alt+p删除行\n\
             command=lambda: self.opens(
                 "rt",
                 "UTF-8"))
+        cd8.add_command(
+            label="更多编码",
+            command=lambda: self.opens(
+                "rt",
+                askencoding()))
         cd20.add_command(label="打开cmd", command=lambda: subprocess.Popen("cmd"))
         cd20.add_command(label="打开终端", command=lambda: subprocess.Popen("powershell"))
         cd8.add_command(label="用ANSI打开", command=lambda: self.opens("rt", "ANSI"))
@@ -2273,7 +2560,7 @@ Ctrl+Alt+u增加行,Ctrl+Alt+p删除行\n\
         cd.add_separator()
         cd.add_command(label="文本长度(L)     Ctrl+L", command=self.len_of_text)
         cd.add_command(label="英文文本词数", command=self.len_of_english_text)
-        cd.add_command(label="词频统计", command=lambda:threading.Thread(target=self.lcut).start())
+        cd.add_command(label="词频统计", command=lambda: threading.Thread(target=self.lcut).start())
         cd.add_command(label="文件信息",
                        command=lambda: self.show_file(self.paths[self.note.index(self.note.select())], len(
                            self.text[self.note.index(self.note.select())].get("1.0", END)),
@@ -2283,6 +2570,7 @@ Ctrl+Alt+u增加行,Ctrl+Alt+p删除行\n\
         cd.add_command(label="文件列表", command=self.post_input_list)
         cd.add_separator()
         cd.add_command(label="打开(O)            Ctrl+O", command=self.choose)
+        cd.add_command(label="打开文件夹", command=self.open_dir)
         cd.add_command(label="重新打开", command=self.chooses)
         cd.add_cascade(label="用...打开", menu=cd8)
 
@@ -2487,7 +2775,6 @@ ttkcreator.", "关于-tkinter"))
         self.label4['text'] = self.paths[self.note.index(self.note.select())]
         self.label_theme['text'] = f'|    {self.theme_chinese[self.theme]}'
         self.configure(bg="white")
-        Style(theme="sandstone")
         # self.iconbitmap("C:/Windows/notepad.exe")
         # noinspection PyArgumentList
         self.text[self.note.index(self.note.select())].tag_configure("found", background="yellow")
@@ -2505,9 +2792,12 @@ ttkcreator.", "关于-tkinter"))
         # self.note.bind("<Configure>", self.Configuration)
 
     def set_file(self):
-        self.files = ScrolledFrame(self)
-        self.files.place(width=150, height=self.winfo_height() - 44, y=22)
-        Label(self, text="打开的文件", font=("Microsoft YaHei UI", 10, "bold")).place(x=1, y=2)
+        self.files = ScrolledFrame(self, width=150)
+        self.dir = ScrolledCanvas(self)
+        self.item = FileTreeItem(os.path.dirname(self.paths[0]))
+        self.node = TreeNode(self.dir.canvas, None, self.item, self)
+        self.node.expand()
+        Label(self, text="打开的文件", font=("Microsoft YaHei UI", 10, "bold")).pack(anchor=W, side=TOP, fill=Y)
 
     def update_file(self):
         for widget in self.files.winfo_children():
@@ -2527,6 +2817,7 @@ ttkcreator.", "关于-tkinter"))
     def show(self):
         windnd.hook_dropfiles(self, func=self.dragged_files)
         self.protocol('WM_DELETE_WINDOW', self.tk_quit)
+        Style(theme="sandstone")
         self.note = Notebook(self)
         self.frame = []
         self.note.enable_traversal()
