@@ -19,7 +19,12 @@ from idlelib import zoomheight
 from dialogs import *
 from widgets import *
 
+FILETYPES = [("文本文档", ".txt"), ("二维数组/Excel", ".csv"), ("系统配置", ".ini"), ("windows批处理文件", ".bat .cmd"),
+             ("Windows VBScript", ".vbs"), ("python文件", ".py .pyw"), ("html文件", ".html"), ("C语言源码", ".c"),
+             ("C++源码", ".cpp"), ("C/C++头文件", ".h .hpp"), ("日志文件", ".log"), ("HTML文件", ".html"),
+             ("JSON文件", ".json"), ("所有文件", ".*")]
 ICONDIR = "icon"
+USERNAME = getpass.getuser()
 
 
 def wheel_event(event, widget=None):
@@ -173,7 +178,7 @@ class TreeNode:
                                     f"打开文件{self.parents.paths[self.parents.note.index(self.parents.note.select())]}失败")
                                 self.parents.encoding = encoding
                             except TclError:
-                                os.remove(f"C:/Users/{getpass.getuser()}/AppData/Local/Temp/python_notepad.tmp")
+                                os.remove(f"C:/Users/{USERNAME}/AppData/Local/Temp/python_notepad.tmp")
                                 self.parents.show()
             self.parents.saves(self.item.path)
         print(self.parents.paths)
@@ -585,7 +590,7 @@ Ctrl+s保存,Ctrl+B运行pyw,F5运行py,Ctrl+w退出\nCtrl+L文本长度\
 Ctrl+o打开,Alt+C代码高亮\nCtrl+/注释,Ctrl+]增加缩进,Ctrl+[取消缩进\n\
 Ctrl+Alt+u增加行,Ctrl+Alt+p删除行\n\
 如遇不小心选择超大文件导致之后打开时卡死,\n\
-请删除C:/Users/{getpass.getuser()}/AppData/Local/Temp/\npython_notepad.tmp\n\
+请删除C:/Users/{USERNAME}/AppData/Local/Temp/\npython_notepad.tmp\n\
 目前不支持m4a播放,pdf显示", "帮助")
 
     def lcut(self):
@@ -614,13 +619,13 @@ Ctrl+Alt+u增加行,Ctrl+Alt+p删除行\n\
                 i += 1
             print(x)
             self.show_info(x, '词频统计')
-            # with open(f"C:/Users/{getpass.getuser()}"
+            # with open(f"C:/Users/{USERNAME}"
             #           "/AppData/Local/Temp/python_notepad_chinese_words_for_15.python_notepad",
             #           "wt") as fo:
             #     fo.write(x)
             #     fo.close()
             # subprocess.Popen(
-            #     f"main.exe C:/Users/{getpass.getuser()}/AppData/Local/Temp/python_notepad_chinese_words_for_15.python_notepad")
+            #     f"main.exe C:/Users/{USERNAME}/AppData/Local/Temp/python_notepad_chinese_words_for_15.python_notepad")
 
         threading.Thread(target=cut).start()
 
@@ -778,7 +783,7 @@ Ctrl+Alt+u增加行,Ctrl+Alt+p删除行\n\
 
     @staticmethod
     def open_path(r):
-        with open(f"C:/Users/{getpass.getuser()}/AppData/Local/Temp/python_notepad.tmp", "wt") as fo:
+        with open(f"C:/Users/{USERNAME}/AppData/Local/Temp/python_notepad.tmp", "wt") as fo:
             fo.write(r)
             fo.close()
 
@@ -834,7 +839,7 @@ Ctrl+Alt+u增加行,Ctrl+Alt+p删除行\n\
             print(f"保存文件{self.paths[self.note.index(self.note.select())]}")
             self.title("python记事本 - " + self.name[self.note.index(self.note.select())])
             if os.path.isfile(self.paths[self.note.index(self.note.select())]):
-                with open(f"C:/Users/{getpass.getuser()}/AppData/Local/Temp/python_notepad.tmp", "wt") as fo:
+                with open(f"C:/Users/{USERNAME}/AppData/Local/Temp/python_notepad.tmp", "wt") as fo:
                     fo.write(self.paths[self.note.index(self.note.select())])
                     fo.close()
         return self.paths[self.note.index(self.note.select())]
@@ -845,34 +850,7 @@ Ctrl+Alt+u增加行,Ctrl+Alt+p删除行\n\
             if self.paths[self.note.index(self.note.select())] == "":
                 self.paths[self.note.index(self.note.select())] = str(asksaveasfilename(initialfile="新建文本文档.txt",
                                                                                         title="python记事本 - 另存为...",
-                                                                                        filetypes=[("文本文档", ".txt"),
-                                                                                                   (
-                                                                                                       "二维数组/Excel",
-                                                                                                       ".csv"),
-                                                                                                   ("系统配置", ".ini"),
-                                                                                                   (
-                                                                                                       "windows批处理文件",
-                                                                                                       ".bat .cmd"),
-                                                                                                   ("Windows VBScript",
-                                                                                                    ".vbs"),
-                                                                                                   ("python文件",
-                                                                                                    ".py .pyw"),
-                                                                                                   (
-                                                                                                       "html文件",
-                                                                                                       ".html"),
-                                                                                                   ("C语言源码", ".c"),
-                                                                                                   ("C++源码", ".cpp"),
-                                                                                                   (
-                                                                                                       "C/C++头文件",
-                                                                                                       ".h"),
-                                                                                                   ("日志文件", ".log"),
-                                                                                                   (
-                                                                                                       "HTML文件",
-                                                                                                       ".html"),
-                                                                                                   (
-                                                                                                       "JSON文件",
-                                                                                                       ".json"),
-                                                                                                   ("所有文件", ".*")]))
+                                                                                        filetypes=FILETYPES))
             if os.path.isfile(self.paths[self.note.index(self.note.select())]):
                 self.paths[self.note.index(self.note.select())] = self.to_save()
 
@@ -881,23 +859,7 @@ Ctrl+Alt+u增加行,Ctrl+Alt+p删除行\n\
                 self.note.index(self.note.select()), MediaPlayer):
             self.paths[self.note.index(self.note.select())] = str(asksaveasfilename(initialfile="新建文本文档.txt",
                                                                                     title="python记事本 - 另存为...",
-                                                                                    filetypes=[("文本文档", ".txt"),
-                                                                                               ("二维数组/Excel",
-                                                                                                ".csv"),
-                                                                                               ("系统配置", ".ini"), (
-                                                                                                   "windows批处理",
-                                                                                                   ".bat",
-                                                                                                   ".cmd"),
-                                                                                               ("windows VBScript",
-                                                                                                ".vbs"),
-                                                                                               (
-                                                                                                   "python文件", ".py",
-                                                                                                   ".pyw"),
-                                                                                               ("html文件", ".html"),
-                                                                                               ("C语言源码", ".c"),
-                                                                                               ("C++源码", ".cpp"),
-                                                                                               ("日志文件", ".log"),
-                                                                                               ("所有文件", ".*")]))
+                                                                                    filetypes=FILETYPES))
             self.paths[self.note.index(self.note.select())] = self.to_save()
 
     def save_all(self):
@@ -919,6 +881,13 @@ Ctrl+Alt+u增加行,Ctrl+Alt+p删除行\n\
                 "长度"):
             pyperclip.copy(str(len(gets)))
 
+    def n_for_text(self,event=None):
+        gets = str(self.text[self.note.index(self.note.select())].get(1.0, END)).count("\n")
+        if Messagebox.okcancel(
+                f"文本行数为:{gets},点击复制,点X取消",
+                "长度"):
+            pyperclip.copy(str(gets))
+
     def len_of_english_text(self, event=None):
         gets = str(self.text[self.note.index(self.note.select())].get(1.0, END)).replace(".", "").replace("\n",
                                                                                                           "").replace(
@@ -936,8 +905,9 @@ Ctrl+Alt+u增加行,Ctrl+Alt+p删除行\n\
 
     def time_insert(self):
         times = gettime()
-        self.text[self.note.index(self.note.select())].insert(
-            self.text[self.note.index(self.note.select())].index(INSERT), times)
+        index = self.note.index(self.note.select())
+        self.text[index].insert(
+            self.text[index].index(INSERT), times)
 
     def choose_encodings(self, encoding):
         path = self.paths[-1]
@@ -980,33 +950,34 @@ Ctrl+Alt+u增加行,Ctrl+Alt+p删除行\n\
 
     @staticmethod
     def saves(string):
-        if string != f"C:/Users/{getpass.getuser()}/AppData/Local/Temp/python_notepad_run_c_error.error" \
+        if string != f"C:/Users/{USERNAME}/AppData/Local/Temp/python_notepad_run_c_error.error" \
                 and string != "" \
-                and string != f"C:/Users/{getpass.getuser()}/AppData/Local/Temp/python_notepad_chinese_words_for_15.python_notepad":
-            with open(f"C:/Users/{getpass.getuser()}/AppData/Local/Temp/python_notepad.tmp", "wt") as fo:
+                and string != f"C:/Users/{USERNAME}/AppData/Local/Temp/python_notepad_chinese_words_for_15.python_notepad":
+            with open(f"C:/Users/{USERNAME}/AppData/Local/Temp/python_notepad.tmp", "wt") as fo:
                 fo.write(string)
                 fo.close()
 
     def chooses(self):
         encoding = self.encoding
+        path = self.paths[self.note.index(self.note.select())]
         try:
             self.choose_encodings("GBK")
-            self.saves(self.paths[self.note.index(self.note.select())])
+            self.saves(path)
             self.encoding = 'GBK'
         except UnicodeError:
             try:
                 self.choose_encodings("GB2312")
-                self.saves(self.paths[self.note.index(self.note.select())])
+                self.saves(path)
                 self.encoding = 'GB2312'
             except UnicodeError:
                 try:
                     self.choose_encodings("UTF-8")
-                    self.saves(self.paths[self.note.index(self.note.select())])
+                    self.saves(path)
                     self.encoding = 'UTF-8'
                 except UnicodeError:
                     try:
                         self.choose_encodings("ANSI")
-                        self.saves(self.paths[self.note.index(self.note.select())])
+                        self.saves(path)
                         self.encoding = 'ANSI'
                     except UnicodeError:
                         # try:
@@ -1055,7 +1026,7 @@ Ctrl+Alt+u增加行,Ctrl+Alt+p删除行\n\
                             print(f"打开文件{self.paths[self.note.index(self.note.select())]}失败")
                             self.encoding = encoding
                         except TclError:
-                            os.remove(f"C:/Users/{getpass.getuser()}/AppData/Local/Temp/python_notepad.tmp")
+                            os.remove(f"C:/Users/{USERNAME}/AppData/Local/Temp/python_notepad.tmp")
                             self.show()
         self.update_file()
         self.two_open_or_not = False
@@ -1092,7 +1063,7 @@ Ctrl+Alt+u增加行,Ctrl+Alt+p删除行\n\
             self.name[self.note.index(self.note.select())] = os.path.basename(
                 self.paths[self.note.index(self.note.select())])
             self.title("python记事本 - " + self.name[self.note.index(self.note.select())])
-            with open(f"C:/Users/{getpass.getuser()}/AppData/Local/Temp/python_notepad.tmp", "wt") as fo:
+            with open(f"C:/Users/{USERNAME}/AppData/Local/Temp/python_notepad.tmp", "wt") as fo:
                 fo.write(self.paths[-1])
                 fo.close()
             self.encoding = encoding
@@ -1131,7 +1102,7 @@ Ctrl+Alt+u增加行,Ctrl+Alt+p删除行\n\
             self.name[self.note.index(self.note.select())] = os.path.basename(
                 self.paths[-1])
             self.title("python记事本 - " + self.name[self.note.index(self.note.select())])
-            with open(f"C:/Users/{getpass.getuser()}/AppData/Local/Temp/python_notepad.tmp", "wt") as fo:
+            with open(f"C:/Users/{USERNAME}/AppData/Local/Temp/python_notepad.tmp", "wt") as fo:
                 fo.write(self.paths[self.note.index(self.note.select())])
                 fo.close()
         except UnicodeError:
@@ -1158,8 +1129,9 @@ Ctrl+Alt+u增加行,Ctrl+Alt+p删除行\n\
             pass
 
     def copy_cut(self):
-        pyperclip.copy(self.text[self.note.index(self.note.select())].get(SEL_FIRST, SEL_LAST))
-        self.text[self.note.index(self.note.select())].delete(SEL_FIRST, SEL_LAST)
+        text = self.text[self.note.index(self.note.select())]
+        pyperclip.copy(text.get(SEL_FIRST, SEL_LAST))
+        text.delete(SEL_FIRST, SEL_LAST)
 
     def tk_quit(self):
         save_or_not = None
@@ -1269,11 +1241,11 @@ Ctrl+Alt+u增加行,Ctrl+Alt+p删除行\n\
             a = None
         if a is None:
             try:
-                with open(f"C:/Users/{getpass.getuser()}/AppData/Local/Temp/python_notepad.tmp", "rt") as fo:
+                with open(f"C:/Users/{USERNAME}/AppData/Local/Temp/python_notepad.tmp", "rt") as fo:
                     pathes = fo.read()
                     fo.close()
             except FileNotFoundError:
-                with open(f"C:/Users/{getpass.getuser()}/AppData/Local/Temp/python_notepad.tmp", "wt") as fo:
+                with open(f"C:/Users/{USERNAME}/AppData/Local/Temp/python_notepad.tmp", "wt") as fo:
                     pathes = ""
                     fo.close()
             if not (os.path.isfile(pathes)):
@@ -1366,10 +1338,10 @@ Ctrl+Alt+u增加行,Ctrl+Alt+p删除行\n\
             Messagebox.show_info("编译成功", "运行")
             subprocess.Popen("a.exe")
         else:
-            with open(f"C:/Users/{getpass.getuser()}/AppData/Local/Temp/python_notepad_run_c_error.error", "wt") as fo:
+            with open(f"C:/Users/{USERNAME}/AppData/Local/Temp/python_notepad_run_c_error.error", "wt") as fo:
                 fo.write(gets)
                 fo.close()
-            subprocess.Popen(f"main C:/Users/{getpass.getuser()}/AppData/Local/Temp/python_notepad_run_c_error.error")
+            subprocess.Popen(f"main C:/Users/{USERNAME}/AppData/Local/Temp/python_notepad_run_c_error.error")
 
     def enters(self):
         get = self.Status.get()
@@ -1396,6 +1368,29 @@ Ctrl+Alt+u增加行,Ctrl+Alt+p删除行\n\
         except TclError:
             pass
 
+    def files_info(self):
+        root = Toplevel()
+        root.title("文件统计")
+        root.geometry("300x400")
+        root.iconbitmap(os.path.join(os.path.dirname(sys.argv[0]), '.\\icon\\notepad.ico'))
+        frm = ScrolledFrame(root)
+        for i in self.paths:
+            bs = os.path.basename(i)
+            Label(frm, text=i).pack(side=TOP, expand=YES)
+            Label(frm, text=f"  文件名: {bs}").pack(side=TOP, expand=YES)
+            Label(frm, text=f"  文件路径: {os.path.dirname(i)}").pack(side=TOP, expand=YES)
+            Label(frm, text=f"  文件类型: {bs.split('.')[-1] if '.' in bs else ''}").pack(side=TOP, expand=YES)
+            Label(frm, text=f"  文件大小: {round(os.path.getsize(i) / 1024, 1)}KB").pack(side=TOP, expand=YES)
+            Label(frm, text=f"  创建日期: {datetime.fromtimestamp(get.st_ctime)}").pack(side=TOP, expand=YES)
+            Label(frm, text=f"  访问日期: {datetime.fromtimestamp(get.st_atime)}").pack(side=TOP, expand=YES)
+            Label(frm, text=f"  修改日期: {datetime.fromtimestamp(get.st_mtime)}").pack(side=TOP, expand=YES)
+            with open(i, 'rt') as fo:
+                read = fo.read()
+                Label(frm, text=f"文本行数: {read.count('\n')}").pack(side=TOP, expand=YES)
+                Label(frm, text=f"文本长度: {len(read)}").pack(side=TOP, expand=YES)
+        frm.pack(fill=BOTH, expand=YES)
+        root.mainloop()
+
     def linecolor(self):
         for i in self.text:
             i.linenumbers.update_colors(self.choosecolor()[1])
@@ -1415,10 +1410,6 @@ Ctrl+Alt+u增加行,Ctrl+Alt+p删除行\n\
             self.fontname = font_
             for i in self.text:
                 i.set_font(font=font_)
-        # self.label.config(font=font)
-        # self.label2.config(font=font)
-        # self.label3.config(font=font)
-        # self.label4.config(font=font)
 
     def config_font(self, mode='+'):
         size = int(self.fontname.cget('size')) + (1 if mode == '+' else -1)
@@ -1596,6 +1587,7 @@ Ctrl+Alt+u增加行,Ctrl+Alt+p删除行\n\
         cd17 = Menu(self, tearoff=False)
         cd18 = Menu(self, tearoff=False)
         cd19 = Menu(self, tearoff=False)
+        cd21 = Menu(self, tearoff=False)
         cd16.add_command(label="转换成大写", command=lambda: self.big_small(low=False))
         cd16.add_command(label="转换成小写", command=self.big_small)
         cd16.add_command(label="首字母大写", command=lambda: self.big_small(low=''))
@@ -1628,14 +1620,16 @@ Ctrl+Alt+u增加行,Ctrl+Alt+p删除行\n\
         cd20.add_command(label="打开终端", command=lambda: subprocess.Popen("powershell"))
         cd8.add_command(label="用ANSI打开", command=lambda: self.opens("rt", "ANSI"))
         cd.add_command(label="新建文件(N)    Ctrl+N", command=self.new)
-        # cd.add_command(label="新建窗口", command=lambda: MainWindow())
         cd.add_command(label="新建窗口", command=lambda: subprocess.Popen("main"))
         cd.add_command(label="保存(S)             Ctrl+S", command=self.save)
         cd.add_command(label="另存为", command=self.save_as)
         cd.add_command(label="全部保存", command=self.save_all)
         cd.add_command(label="复制文件", command=self.copy_file)
         cd.add_separator()
-        cd.add_command(label="文本长度(L)     Ctrl+L", command=self.len_of_text)
+        cd21.add_command(label="文本长度(L)     Ctrl+L", command=self.len_of_text)
+        cd21.add_command(label="文本行数", command=self.n_of_text)
+        cd21.add_command(label="文件统计", command=self.files_info)
+        cd.add_cascade(label="文本统计", menu=cd21)
         cd.add_command(label="英文文本词数", command=self.len_of_english_text)
         cd.add_command(label="词频统计", command=lambda: threading.Thread(target=self.lcut).start())
         cd.add_command(label="文件信息",
@@ -1669,12 +1663,12 @@ Ctrl+Alt+u增加行,Ctrl+Alt+p删除行\n\
         cd.add_separator()
         cd.add_command(label="退出                    Alt+F4", command=self.tk_quit)
         cd.add_command(label="直接退出(P)      Ctrl+P", command=sys.exit)
-        for text, command, status, value in (("暗色主题", lambda: self.Styles(theme="darkly"), self.Status2, 1),
-                                             ("亮色主题", lambda: self.Styles(theme="sandstone"), self.Status2, 2),
-                                             ("紫色主题", lambda: self.Styles(theme="vapor"), self.Status2, 3),
-                                             ("蓝色主题", lambda: self.Styles(theme="solar"), self.Status2, 4),
-                                             ("灰色主题", lambda: self.Styles(theme="superhero"), self.Status2, 5)):
-            cd7.add_radiobutton(label=text, command=command, variable=status,
+        for text, command, value in (("暗色主题", lambda: self.Styles(theme="darkly"), 1),
+                                             ("亮色主题", lambda: self.Styles(theme="sandstone"), 2),
+                                             ("紫色主题", lambda: self.Styles(theme="vapor"), 3),
+                                             ("蓝色主题", lambda: self.Styles(theme="solar"), 4),
+                                             ("灰色主题", lambda: self.Styles(theme="superhero"), 5)):
+            cd7.add_radiobutton(label=text, command=command, variable=self.Status2,
                                 value=value)
         for text, value, command in (("cosmo", 6, lambda: self.Styles(theme="cosmo")),
                                      ("flatly", 7, lambda: self.Styles(theme="flatly")),
@@ -1763,23 +1757,23 @@ Breaking changes in 1.0\n\
 Version 1.0 is a complete rebuild of the library. If you are using version 0.5 you may run into issues trying to import\
 themes with the themes.json as this has been removed from 1.0. You can now import and save themes directly using the \
 ttkcreator.", "关于-tkinter"))
-        # cd12.add_command(label="运行python F5", command=self.run_module)
-        # cd12.add_command(label="运行pyw Ctrl+B", command=self.pyw)
-        # cd12.add_command(
-        #     label="python shell",
-        #     command=lambda: subprocess.Popen("shell"))
-        # cd12.add_command(
-        #     label="运行C语言",
-        #     command=lambda: self.gcc("gcc.exe", self.paths[self.note.index(self.note.select())]))
-        # cd12.add_command(
-        #     label="运行C++",
-        #     command=lambda: self.gcc("g++.exe", self.paths[self.note.index(self.note.select())]))
-        # cd12.add_command(
-        #     label="运行.vbs .js",
-        #     command=lambda: self.run_modules(f"wscript {self.paths[self.note.index(self.note.select())]}"))
-        # cd12.add_command(label="运行.html", command=lambda: self.run_modules(
-        #     f'"C:\\Program Files\\Internet Explorer\\iexplore.exe" {self.paths[self.note.index(self.note.select())]}'))
-        # cd9.add_cascade(label="运行", menu=cd12)
+        cd12.add_command(label="运行python F5", command=self.run_module)
+        cd12.add_command(label="运行pyw Ctrl+B", command=self.pyw)
+        cd12.add_command(
+            label="python shell",
+            command=lambda: subprocess.Popen("shell"))
+        cd12.add_command(
+            label="运行C语言",
+            command=lambda: self.gcc("gcc.exe", self.paths[self.note.index(self.note.select())]))
+        cd12.add_command(
+            label="运行C++",
+            command=lambda: self.gcc("g++.exe", self.paths[self.note.index(self.note.select())]))
+        cd12.add_command(
+            label="运行.vbs .js",
+            command=lambda: self.run_modules(f"wscript {self.paths[self.note.index(self.note.select())]}"))
+        cd12.add_command(label="运行.html", command=lambda: self.run_modules(
+            f'"C:\\Program Files\\Internet Explorer\\iexplore.exe" {self.paths[self.note.index(self.note.select())]}'))
+        cd9.add_cascade(label="运行", menu=cd12)
         cd9.add_cascade(label="计算", menu=cd10)
         cd10.add_command(label="计算日期之差", command=self.date)
         cd10.add_command(label="开方", command=self.sqrt)
@@ -1852,13 +1846,9 @@ ttkcreator.", "关于-tkinter"))
         self.label4['text'] = self.paths[self.note.index(self.note.select())]
         self.label_theme['text'] = f'|    {self.theme_chinese[self.theme]}'
         self.configure(bg="white")
-        # self.iconbitmap("C:/Windows/notepad.exe")
         # noinspection PyArgumentList
         self.text[self.note.index(self.note.select())].tag_configure("found", background="yellow")
         self.text[self.note.index(self.note.select())].tag_configure("web", foreground="blue")
-
-        # self.Statusbar = Label(self, text="第1行,第1列", relief=SUNKEN, anchor=W)
-        # self.Statusbar.pack(side=BOTTOM, fill=X)
         def bind():
             for i in self.text:
                 self.binds(i)
@@ -1866,10 +1856,9 @@ ttkcreator.", "关于-tkinter"))
         threading.Thread(target=bind).start()
         self.bind("<Configure>", lambda event: threading.Thread(target=self.Configuration).start())
         self.bind("<Double-Button-2>", self.large)
-        # self.note.bind("<Configure>", self.Configuration)
 
     def set_file(self):
-        self.files = ScrolledFrame(self, width=150)
+        self.files = ScrolledFrame(self, width=150, hbar=True)
         self.dir = ScrolledCanvas(self)
         self.item = FileTreeItem(os.path.dirname(self.paths[0]))
         self.node = TreeNode(self.dir.canvas, None, self.item, self)
@@ -1882,17 +1871,26 @@ ttkcreator.", "关于-tkinter"))
     def update_file(self):
         for widget in self.files.winfo_children():
             widget.destroy()
-        # commands = [lambda: self.note.select(self.frame[i]) for i in range(len(self.paths)) if print(i) is None]
         commands = [self.note.tabs()[i] for i in range(len(self.paths))]
         row = [i for i in range(len(self.paths))]
         for i in range(len(self.paths)):
             try:
-                # Label(self.files, text=os.path.basename(self.paths[i])).pack(anchor=W)#place(x=3, y=(i + 1) * 25)
                 Button(self.files, text=os.path.basename(self.paths[i]),
                        command=lambda f=commands[i]: self.note.select(f), bootstyle='link').grid(row=row[i], sticky=W,
                                                                                                  column=1, padx=0)
             except IndexError:
                 pass
+
+    def set_bind(self):
+        self.note.bind("<Tab>", lambda event: self.up(self.note.index(self.note.select()) + 1))
+        self.note.bind("<Shift-Tab>", lambda event: self.up(self.note.index(self.note.select()) - 1))
+        self.files.bind("<Tab>", lambda event: self.up(self.note.index(self.note.select()) + 1))
+        self.files.bind("<Shift-Tab>", lambda event: self.up(self.note.index(self.note.select()) - 1))
+        self.note.bind("<Button-3>", lambda event: cd_note.post(event.x_root, event.y_root))
+        self.note.bind("<Home>", lambda event: self.up(0))
+        self.note.bind("<End>", lambda event: self.up(-1))
+        self.files.bind("<Home>", lambda event: self.up(0))
+        self.files.bind("<End>", lambda event: self.up(-1))
 
     def show(self):
         windnd.hook_dropfiles(self, func=self.dragged_files)
@@ -1904,22 +1902,12 @@ ttkcreator.", "关于-tkinter"))
         self.lb = Label(self)
         self.lb.place(x=0, y=self.winfo_height() - 39)
         self.label = Label(self, font=Font(family='Microsoft YaHei UI', size=8))
-        # self.label.place(x=750, y=self.winfo_height() - 39)
         self.label2 = Label(self, font=Font(family='Microsoft YaHei UI', size=8))
-        # self.label2.place(x=900, y=self.winfo_height() - 39)
         self.label3 = Label(self, font=Font(family='Microsoft YaHei UI', size=8))
-        # self.label3.place(x=845, y=self.winfo_height() - 39)
         self.label4 = Label(self, font=Font(family='Microsoft YaHei UI', size=8))
-        # self.label4.place(x=0, y=self.winfo_height() - 39)
-        # self.label4.pack(anchor=SW,side=BOTTOM)
         self.label_theme = Label(self, font=Font(family='Microsoft YaHei UI', size=8))
-        # self.label_theme.place(x=800, y=self.winfo_height() - 39)
         self.new_btn = Button(self.note, command=self.new, text='+', bootstyle='outline-secondary')
-        # self.new_btn.pack(side=RIGHT)
-        # self.new_btn.place(x=940, y=0)
         self.cls_btn = Button(self.note, command=self.close, text='x', bootstyle='outline-secondary')
-        # self.cls_btn.pack(side=RIGHT)
-        # self.cls_btn.place(x=975, y=0)
         self.text = []
         self.set_file()
         self.set_label()
@@ -1929,27 +1917,7 @@ ttkcreator.", "关于-tkinter"))
         cd_note.add_command(label="文件信息",
                             command=self.file_info)
         cd_note.add_command(label="关闭文件", command=self.close)
-        '''
-        cd15.add_command(label="上一个文件", command=lambda: self.up(self.note.index(self.note.select()) - 1))
-        cd15.add_command(label="下一个文件", command=lambda: self.up(self.note.index(self.note.select()) + 1))
-        cd15.add_command(label="第一个文件", command=lambda: self.up(0))
-        cd15.add_command(label="最后一个文件", command=lambda: self.up(-1))'''
-        self.note.bind("<Tab>", lambda event: self.up(self.note.index(self.note.select()) + 1))
-        self.note.bind("<Shift-Tab>", lambda event: self.up(self.note.index(self.note.select()) - 1))
-        self.files.bind("<Tab>", lambda event: self.up(self.note.index(self.note.select()) + 1))
-        self.files.bind("<Shift-Tab>", lambda event: self.up(self.note.index(self.note.select()) - 1))
-        self.note.bind("<Button-3>", lambda event: cd_note.post(event.x_root, event.y_root))
-        self.note.bind("<Home>", lambda event: self.up(0))
-        self.note.bind("<End>", lambda event: self.up(-1))
-        self.files.bind("<Home>", lambda event: self.up(0))
-        self.files.bind("<End>", lambda event: self.up(-1))
-        # self.note.bind("<Button-1>",
-        #                     lambda event: self.title("python记事本 - " + self.name[self.note.index(self.note.select())]))
-        # self.note.bind("<Button-2>",
-        #                     lambda event: self.title("python记事本 - " + self.name[self.note.index(self.note.select())]))
-        # self.note.bind("<Key>",
-        #                     lambda event: self.title("python记事本 - " + self.name[self.note.index(self.note.select())]))
-        # self.text[self.note.index(self.note.select())].tag_bind("web","<F4>",webbrowser.open)
+        self.set_bind()
         self.is_see_rows = True
         self.two_open_or_not = False
         self.larges = False
