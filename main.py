@@ -881,7 +881,7 @@ Ctrl+Alt+u增加行,Ctrl+Alt+p删除行\n\
                 "长度"):
             pyperclip.copy(str(len(gets)))
 
-    def n_for_text(self,event=None):
+    def n_of_text(self,event=None):
         gets = str(self.text[self.note.index(self.note.select())].get(1.0, END)).count("\n")
         if Messagebox.okcancel(
                 f"文本行数为:{gets},点击复制,点X取消",
@@ -959,7 +959,10 @@ Ctrl+Alt+u增加行,Ctrl+Alt+p删除行\n\
 
     def chooses(self):
         encoding = self.encoding
-        path = self.paths[self.note.index(self.note.select())]
+        try:
+            path = self.paths[self.note.index(self.note.select())]
+        except TclError:
+            path = self.paths[0]
         try:
             self.choose_encodings("GBK")
             self.saves(path)
@@ -1376,18 +1379,19 @@ Ctrl+Alt+u增加行,Ctrl+Alt+p删除行\n\
         frm = ScrolledFrame(root)
         for i in self.paths:
             bs = os.path.basename(i)
-            Label(frm, text=i).pack(side=TOP, expand=YES)
-            Label(frm, text=f"  文件名: {bs}").pack(side=TOP, expand=YES)
-            Label(frm, text=f"  文件路径: {os.path.dirname(i)}").pack(side=TOP, expand=YES)
-            Label(frm, text=f"  文件类型: {bs.split('.')[-1] if '.' in bs else ''}").pack(side=TOP, expand=YES)
-            Label(frm, text=f"  文件大小: {round(os.path.getsize(i) / 1024, 1)}KB").pack(side=TOP, expand=YES)
-            Label(frm, text=f"  创建日期: {datetime.fromtimestamp(get.st_ctime)}").pack(side=TOP, expand=YES)
-            Label(frm, text=f"  访问日期: {datetime.fromtimestamp(get.st_atime)}").pack(side=TOP, expand=YES)
-            Label(frm, text=f"  修改日期: {datetime.fromtimestamp(get.st_mtime)}").pack(side=TOP, expand=YES)
-            with open(i, 'rt') as fo:
+            get = os.stat(i)
+            Label(frm, text=i).pack(side=TOP, expand=YES, anchor=W)
+            Label(frm, text=f"    文件名: {bs}").pack(side=TOP, expand=YES, anchor=W)
+            Label(frm, text=f"    文件路径: {os.path.dirname(i)}").pack(side=TOP, expand=YES, anchor=W)
+            Label(frm, text=f"    文件类型: {bs.split('.')[-1] if '.' in bs else ''}").pack(side=TOP, expand=YES, anchor=W)
+            Label(frm, text=f"    文件大小: {round(os.path.getsize(i) / 1024, 1)}KB").pack(side=TOP, expand=YES, anchor=W)
+            Label(frm, text=f"    创建日期: {datetime.fromtimestamp(get.st_ctime)}").pack(side=TOP, expand=YES, anchor=W)
+            Label(frm, text=f"    访问日期: {datetime.fromtimestamp(get.st_atime)}").pack(side=TOP, expand=YES, anchor=W)
+            Label(frm, text=f"    修改日期: {datetime.fromtimestamp(get.st_mtime)}").pack(side=TOP, expand=YES, anchor=W)
+            with open(i, 'rt', encoding="utf-8") as fo:
                 read = fo.read()
-                Label(frm, text=f"文本行数: {read.count('\n')}").pack(side=TOP, expand=YES)
-                Label(frm, text=f"文本长度: {len(read)}").pack(side=TOP, expand=YES)
+                Label(frm, text="文本行数: " + str(read.count('\n'))).pack(side=TOP, expand=YES, anchor=W)
+                Label(frm, text=f"文本长度: {len(read)}").pack(side=TOP, expand=YES, anchor=W)
         frm.pack(fill=BOTH, expand=YES)
         root.mainloop()
 
@@ -1858,7 +1862,7 @@ ttkcreator.", "关于-tkinter"))
         self.bind("<Double-Button-2>", self.large)
 
     def set_file(self):
-        self.files = ScrolledFrame(self, width=150, hbar=True)
+        self.files = ScrolledFrame(self, width=150)
         self.dir = ScrolledCanvas(self)
         self.item = FileTreeItem(os.path.dirname(self.paths[0]))
         self.node = TreeNode(self.dir.canvas, None, self.item, self)

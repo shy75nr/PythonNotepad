@@ -387,3 +387,19 @@ class TextEdit(Frame):
 
     def bind(self, sue, func, add=None):
         self.TerminalText.bind(sue, func, add)
+
+
+class Settings(Frame):
+    def __init__(self, parents):
+        super().__init__(parents)
+        self.parents = parents
+        self.pack(fill=BOTH, expand=YES)
+        Button(self, text="←", command=self.exit).place(x=0, y=0)
+        Label(self, text="python快乐记事本", font=("Microsoft YaHei UI", 18, "bold")).place(x=30, y=0)
+
+
+    def exit(self):
+        self.destroy()
+
+    def cancel(self):
+        self.destroy()
